@@ -1,0 +1,76 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openfga
+  namespace: authn-admin
+spec:
+  releaseName: openfga
+  interval: 10m
+  timeout: 10m
+  chart:
+    spec:
+      chart: openfga
+      version: 0.3.14
+      sourceRef: {kind: HelmRepository, name: authn-openfga, namespace: flux-system}
+  install:
+    remediation: {retries: -1}
+  upgrade:
+    remediation: {retries: 3}
+  driftDetection: {mode: enabled}
+  values:
+    fullnameOverride: openfga
+    replicaCount: 1
+    image: {repository: openfga/openfga, tag: v1.20.0, pullPolicy: IfNotPresent}
+    postgresql: {enabled: false}
+    mysql: {enabled: false}
+    datastore:
+      engine: postgres
+      # The password comes from the CNPG Secret, not the connection URI.
+      existingSecret: openfga-db-app
+      secretKeys: {usernameKey: username, passwordKey: password}
+      applyMigrations: true
+      migrationType: job
+      # Pre-install/pre-upgrade migration avoids the chart's extra wait-for image.
+      waitForMigrations: false
+    migrate:
+      annotations:
+        helm.sh/hook: pre-install,pre-upgrade
+        helm.sh/hook-weight: "-5"
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+      extraVolumes:
+        - name: database-ca
+          secret: {secretName: openfga-db-ca}
+      extraVolumeMounts:
+        - {name: database-ca, mountPath: /database-ca, readOnly: true}
+    authn:
+      method: preshared
+      preshared: {keysSecret: openfga-api-credentials}
+    playground: {enabled: false}
+    profiler: {enabled: false}
+    telemetry:
+      metrics: {enabled: false}
+      trace: {enabled: false}
+    serviceAccount: {create: false, name: openfga}
+    # A normal chart-created URI Secret would not exist at pre-install time.
+    # This public URI and the pre-existing CNPG Secret also reach the migration Job.
+    extraEnvVars:
+      - name: OPENFGA_DATASTORE_URI
+        value: "postgres://openfga@openfga-db-rw.authn-admin.svc.cluster.local:5432/openfga?sslmode=verify-full&sslrootcert=/database-ca/ca.crt"
+    extraVolumes:
+      - name: database-ca
+        secret: {secretName: openfga-db-ca}
+    extraVolumeMounts:
+      - {name: database-ca, mountPath: /database-ca, readOnly: true}
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile: {type: RuntimeDefault}
+    securityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities: {drop: [ALL]}
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}

@@ -1,0 +1,94 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: heimdall
+  namespace: authn-admin
+spec:
+  releaseName: heimdall
+  interval: 10m
+  timeout: 10m
+  chartRef: {kind: OCIRepository, name: authn-heimdall, namespace: flux-system}
+  install:
+    remediation: {retries: -1}
+  upgrade:
+    remediation: {retries: 3}
+  driftDetection: {mode: enabled}
+  values:
+    fullnameOverride: heimdall
+    operationMode: proxy
+    image: {repository: ghcr.io/dadrus/heimdall, tag: v0.17.22}
+    # TLS is terminated by the existing Cilium Gateway. Selected ClusterIP
+    # HTTP backends have no TLS listener. Other security defaults remain on.
+    extraArgs:
+      - --insecure-skip-ingress-tls-enforcement
+      - --insecure-skip-egress-tls-enforcement
+      - --insecure-skip-upstream-tls-enforcement
+    serve:
+      port: 4456
+      # Cilium's node/router addresses from the base cluster. Ingress policy
+      # restricts the caller to the Gateway; routes sanitize forwarding headers.
+      trusted_proxies: [192.168.0.0/20, 10.42.0.0/16]
+      # Write timeout resets on writes; successful WebSocket upgrades disable it.
+      timeout: {read: 30s, write: 30s, idle: 120s}
+    management: {host: 0.0.0.0, port: 4457}
+    log: {level: info}
+    metrics: {enabled: false}
+    tracing: {enabled: false}
+    deployment:
+      replicaCount: 1
+      resources:
+        requests: {cpu: 25m, memory: 96Mi}
+        limits: {memory: 256Mi}
+      volumes:
+        - name: rules
+          configMap: {name: heimdall-rules}
+      volumeMounts:
+        - {name: rules, mountPath: /etc/heimdall/rules, readOnly: true}
+    mechanisms:
+      authenticators:
+        - {id: deny, type: unauthorized}
+        - {id: public, type: anonymous}
+        - id: admin-session
+          type: generic
+          config:
+            identity_info_endpoint:
+              url: http://oauth2-proxy.authn-admin.svc.cluster.local:80/oauth2/userinfo
+              method: GET
+            authentication_data_source:
+              - cookie: __Secure-elektro_admin
+            forward_cookies: [__Secure-elektro_admin]
+            subject: {id: user}
+            # Deliberately no identity cache: check the admin allowlist each request.
+      authorizers:
+        - id: browser-safety
+          type: cel
+          config:
+            expressions:
+              - expression: has(Subject.Attributes.email) && Subject.Attributes.email != ""
+                message: A verified, allowlisted email is required
+              - expression: >-
+                  Request.Method in ["GET", "HEAD", "OPTIONS"] ||
+                  Request.Header("Origin") == "https://" + Request.URL.Host
+                message: Unsafe browser requests require a matching Origin
+      finalizers:
+        - {id: noop, type: noop}
+        - id: browser-upstream
+          type: header
+          config:
+            headers:
+              # An empty header template is ignored by Heimdall. Replace the
+              # cookie header explicitly so application pods never see SSO cookies.
+              Cookie: authn=redacted
+              X-Authenticated-Subject: "{{ .Subject.ID }}"
+      error_handlers:
+        - id: sign-in
+          type: redirect
+          config:
+            # Never trust client-provided X-Forwarded-* to build this redirect.
+            to: 'https://sso.admin.internal/oauth2/start?rd={{ .Request.URL.String | replace "http://" "https://" | urlenc }}'
+    default_rule:
+      execute:
+        - authenticator: deny
+        - finalizer: noop
+    providers:
+      file_system: {src: /etc/heimdall/rules, watch: true}

@@ -1,0 +1,31 @@
+name: Validate
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install validation dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          bash scripts/install-validation-tools.sh
+      - name: Render and validate API schemas
+        run: python3 scripts/validate.py
+      - name: Exercise real proxy denial and forwarding behavior
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate declarative identity provisioning
+        run: |
+          tofu -chdir=provisioning fmt -check
+          tofu -chdir=provisioning init -backend=false -input=false -lockfile=readonly
+          tofu -chdir=provisioning validate -no-color

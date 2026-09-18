@@ -1,0 +1,40 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: zitadel-db
+  namespace: authn-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  instances: 1
+  # Use the default PostgreSQL image of the already pinned CNPG operator.
+  storage:
+    storageClass: longhorn-cnpg
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: zitadel
+      owner: zitadel
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: openfga-db
+  namespace: authn-admin
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  instances: 1
+  storage:
+    storageClass: longhorn-cnpg
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: openfga
+      owner: openfga
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}

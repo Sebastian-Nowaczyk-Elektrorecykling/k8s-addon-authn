@@ -1,0 +1,96 @@
+version: "1alpha4"
+rules:
+  # Only these OAuth endpoints are public. /oauth2/userinfo stays private.
+  - id: sso-endpoints
+    match:
+      hosts: [{type: exact, value: sso.admin.internal}]
+      routes:
+        - {path: /oauth2/start}
+        - {path: /oauth2/callback}
+        - {path: /oauth2/sign_out}
+    forward_to:
+      host: oauth2-proxy.authn-admin.svc.cluster.local:80
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: public
+      - finalizer: noop
+  - id: hubble
+    match:
+      hosts: [{type: exact, value: hubble.admin.internal}]
+      routes: [{path: /}, {path: /**}]
+    forward_to:
+      host: hubble-ui.kube-system.svc.cluster.local:80
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: admin-session
+      - authorizer: browser-safety
+      - finalizer: browser-upstream
+    on_error:
+      - error_handler: sign-in
+        if: >-
+          type(Error) == authentication_error &&
+          Request.Header("Accept").contains("text/html")
+  - id: longhorn
+    match:
+      hosts: [{type: exact, value: longhorn.admin.internal}]
+      routes: [{path: /}, {path: /**}]
+    forward_to:
+      host: longhorn-frontend.longhorn-system.svc.cluster.local:80
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: admin-session
+      - authorizer: browser-safety
+      - finalizer: browser-upstream
+    on_error:
+      - error_handler: sign-in
+        if: >-
+          type(Error) == authentication_error &&
+          Request.Header("Accept").contains("text/html")
+  - id: openfga
+    match:
+      hosts: [{type: exact, value: openfga.admin.internal}]
+      routes: [{path: /}, {path: /**}]
+    forward_to:
+      host: openfga.authn-admin.svc.cluster.local:8080
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: admin-session
+      - authorizer: browser-safety
+      - finalizer: browser-upstream
+    on_error:
+      - error_handler: sign-in
+        if: >-
+          type(Error) == authentication_error &&
+          Request.Header("Accept").contains("text/html")
+  - id: garage
+    match:
+      hosts: [{type: exact, value: garage.admin.internal}]
+      routes: [{path: /}, {path: /**}]
+    forward_to:
+      host: authn-garage-admin.garage.svc.cluster.local:3903
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: admin-session
+      - authorizer: browser-safety
+      - finalizer: browser-upstream
+    on_error:
+      - error_handler: sign-in
+        if: >-
+          type(Error) == authentication_error &&
+          Request.Header("Accept").contains("text/html")
+  - id: heimdall
+    match:
+      hosts: [{type: exact, value: heimdall.admin.internal}]
+      routes: [{path: /}, {path: /**}]
+    forward_to:
+      host: heimdall.authn-admin.svc.cluster.local:4457
+      rewrite: {scheme: http}
+    execute:
+      - authenticator: admin-session
+      - authorizer: browser-safety
+      - finalizer: browser-upstream
+    on_error:
+      - error_handler: sign-in
+        if: >-
+          type(Error) == authentication_error &&
+          Request.Header("Accept").contains("text/html")
