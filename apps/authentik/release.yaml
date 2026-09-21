@@ -1,0 +1,90 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authn
+spec:
+  releaseName: authentik
+  interval: 10m
+  timeout: 20m
+  chart:
+    spec:
+      chart: authentik
+      version: 2026.8.3
+      sourceRef:
+        kind: HelmRepository
+        name: authn-authentik
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    global:
+      fullnameOverride: authentik
+      env:
+      - name: AUTHENTIK_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: authn-secrets
+            key: authentik-secret-key
+      - name: AUTHENTIK_POSTGRESQL__PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: authentik-db-app
+            key: password
+      - name: OAUTH2_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: authn-secrets
+            key: oauth2-client-secret
+    authentik:
+      postgresql:
+        host: authentik-db-rw.authn.svc.cluster.local
+        name: authentik
+        user: authentik
+      error_reporting:
+        enabled: false
+    postgresql:
+      enabled: false
+    serviceAccount:
+      create: false
+    blueprints:
+      configMaps:
+      - authentik-blueprints
+    server:
+      replicas: 1
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      ingress:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1536Mi
+    worker:
+      replicas: 1
+      automountServiceAccountToken: false
+      env:
+      - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: authn-secrets
+            key: bootstrap-password
+      - name: AUTHENTIK_BOOTSTRAP_EMAIL
+        valueFrom:
+          secretKeyRef:
+            name: authn-secrets
+            key: bootstrap-email
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1536Mi

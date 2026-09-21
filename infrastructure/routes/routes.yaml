@@ -1,0 +1,125 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authentik-login
+  namespace: authn
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: apps-https
+  hostnames:
+  - auth.${DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: heimdall
+  namespace: authn
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: apps-https
+  hostnames:
+  - home.${DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authentik-admin
+  namespace: authn-admin
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: admin-https
+  hostnames:
+  - authentik.${ADMIN_DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hubble
+  namespace: authn-admin
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: admin-https
+  hostnames:
+  - hubble.${ADMIN_DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn
+  namespace: authn-admin
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: admin-https
+  hostnames:
+  - longhorn.${ADMIN_DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openfga
+  namespace: authn-admin
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: admin-https
+  hostnames:
+  - openfga.${ADMIN_DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: s3
+  namespace: authn
+spec:
+  parentRefs:
+  - name: internal
+    namespace: gateway-system
+    sectionName: apps-https
+  hostnames:
+  - s3.${DOMAIN}
+  rules:
+  - backendRefs:
+    - name: authn-edge
+      namespace: authn
+      port: 80

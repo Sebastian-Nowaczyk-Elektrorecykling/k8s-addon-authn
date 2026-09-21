@@ -1,0 +1,44 @@
+name: Validate
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install validation tools
+        run: |
+          python -m pip install -r requirements-dev.txt
+          bash scripts/install-validation-tools.sh
+          echo "$GITHUB_WORKSPACE/.cache/bin" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install -y nginx
+      - name: Build manifests, render chart, and validate schemas
+        run: python scripts/validate.py
+      - name: Exercise authorization and real reverse-proxy behavior
+        run: |
+          command -v openfga
+          command -v nginx
+          python -m unittest discover -s tests -v
+      - name: Verify pinned workload images exist
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import yaml
+          images = set()
+          for path in Path('apps').rglob('deployment.yaml'):
+              for obj in yaml.safe_load_all(path.read_text()):
+                  if obj['kind'] == 'Deployment':
+                      spec = obj['spec']['template']['spec']
+                      images.update(c['image'] for c in spec['containers'] + spec.get('initContainers', []))
+          for image in sorted(images):
+              subprocess.run(['docker', 'manifest', 'inspect', image], check=True, stdout=subprocess.DEVNULL)
+          PY

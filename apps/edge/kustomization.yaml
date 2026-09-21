@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- deployment.yaml
+configMapGenerator:
+- name: authn-edge-config
+  namespace: authn
+  files:
+  - nginx.conf
+  - oauth2-proxy.cfg
+  - authorizer.py
+  - sites.json

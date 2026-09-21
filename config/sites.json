@@ -1,0 +1,8 @@
+[
+  {"name": "heimdall", "host": "home.${DOMAIN}", "scope": "applications", "upstream": "heimdall.authn.svc.cluster.local:80"},
+  {"name": "authentik-admin", "host": "authentik.${ADMIN_DOMAIN}", "scope": "administration", "upstream": "authentik-server.authn.svc.cluster.local:80"},
+  {"name": "hubble", "host": "hubble.${ADMIN_DOMAIN}", "scope": "administration", "upstream": "hubble-ui.kube-system.svc.cluster.local:80"},
+  {"name": "longhorn", "host": "longhorn.${ADMIN_DOMAIN}", "scope": "administration", "upstream": "longhorn-frontend.longhorn-system.svc.cluster.local:80"},
+  {"name": "openfga", "host": "openfga.${ADMIN_DOMAIN}", "scope": "administration", "upstream": "openfga.authn.svc.cluster.local:8080", "native_authorization": true},
+  {"name": "s3", "host": "s3.${DOMAIN}", "scope": "applications", "upstream": "garage.garage.svc.cluster.local:3900", "native_authorization": true}
+]

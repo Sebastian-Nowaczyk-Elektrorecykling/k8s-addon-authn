@@ -1,0 +1,206 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-namespaces
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./infrastructure/namespaces
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-sources
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./infrastructure/sources
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: true
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-databases
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./infrastructure/databases
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-namespaces
+  - name: storage-cnpg
+  - name: storage-classes
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-authentik
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./apps/authentik
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-databases
+  - name: authn-sources
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-openfga
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./apps/openfga
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-databases
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-heimdall
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./apps/heimdall
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-namespaces
+  - name: storage-classes
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-edge
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./apps/edge
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: true
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-authentik
+  - name: authn-openfga
+  - name: authn-heimdall
+  - name: dns
+  - name: pki
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authn-routes
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./infrastructure/routes
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: true
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-edge
+  - name: gateway
+  - name: storage-longhorn
+  - name: storage-garage

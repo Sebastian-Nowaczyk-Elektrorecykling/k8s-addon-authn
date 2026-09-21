@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openfga
+  namespace: authn
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openfga
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openfga
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: openfga
+        image: openfga/openfga:v1.21.0
+        args:
+        - run
+        env:
+        - &id001
+          name: OPENFGA_DATASTORE_ENGINE
+          value: postgres
+        - &id002
+          name: OPENFGA_DATASTORE_URI
+          valueFrom:
+            secretKeyRef:
+              name: openfga-db-app
+              key: uri
+        - name: OPENFGA_AUTHN_METHOD
+          value: preshared
+        - name: OPENFGA_AUTHN_PRESHARED_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: authn-secrets
+              key: openfga-token
+        - name: OPENFGA_PLAYGROUND_ENABLED
+          value: 'false'
+        ports:
+        - name: http
+          containerPort: 8080
+        securityContext: &id003
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 3
+      initContainers:
+      - name: migrate
+        image: openfga/openfga:v1.21.0
+        args:
+        - migrate
+        env:
+        - *id001
+        - *id002
+        securityContext: *id003
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openfga
+  namespace: authn
+spec:
+  selector:
+    app.kubernetes.io/name: openfga
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

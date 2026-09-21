@@ -1,0 +1,14 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: authn-admin-edge
+  namespace: authn
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: authn-admin
+  to:
+  - group: ''
+    kind: Service
+    name: authn-edge

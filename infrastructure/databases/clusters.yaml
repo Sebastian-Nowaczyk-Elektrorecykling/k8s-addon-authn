@@ -1,0 +1,41 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: authentik-db
+  namespace: authn
+spec:
+  instances: 1
+  storage:
+    storageClass: longhorn-cnpg
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: authentik
+      owner: authentik
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: openfga-db
+  namespace: authn
+spec:
+  instances: 1
+  storage:
+    storageClass: longhorn-cnpg
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: openfga
+      owner: openfga
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi

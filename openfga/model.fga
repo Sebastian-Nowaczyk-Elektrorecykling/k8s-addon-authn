@@ -1,0 +1,11 @@
+model
+  schema 1.1
+
+type user
+
+type agent
+
+type clustersite
+  relations
+    define member: [user, agent]
+    define can_access: member
