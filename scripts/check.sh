@@ -2,6 +2,10 @@
 set -Eeuo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 [[ -s .state/ca.crt ]] || { echo 'Run initialize-secrets.sh to copy the public CA certificate.' >&2; exit 1; }
+for required_secret in authn-admin-access oauth2-proxy-credentials; do
+  existing=$(kubectl -n authn-admin get secret "$required_secret" --ignore-not-found -o name)
+  [[ -n $existing ]] || { echo "Missing authn-admin/$required_secret. Complete bash scripts/bootstrap.sh --admin-email with the initial administrator email." >&2; exit 1; }
+done
 kubectl -n flux-system wait kustomizations -l app.kubernetes.io/part-of=authn-addons \
   --for=condition=Ready --timeout=60s
 if ! kubectl -n authn-admin get httproute authenticated-administration -o json |

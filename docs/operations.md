@@ -68,6 +68,37 @@ The public CA ConfigMap is copied from the base CA during bootstrap. After a
 planned CA rotation, rerun `initialize-secrets.sh`, restart OAuth2 Proxy, and
 redistribute the public CA to clients. TLS verification is never disabled.
 
+## OAuth2 Proxy waiting for Secrets
+
+The `admin-access` volume mounts Secret `authn-admin/authn-admin-access`, with
+an `emails` key containing one administrator email per line. Bootstrap creates
+it in `initialize-secrets.sh`, before applying the Flux source. Existing
+allowlists are preserved. It is separate from `oauth2-proxy-credentials`, which
+can only be created after ZITADEL's OIDC client has been provisioned.
+
+If the pod reports `FailedMount: secret "authn-admin-access" not found`, the
+initial Secret setup is incomplete. Earlier versions created the allowlist
+only after identity provisioning, so an interrupted provisioning stage left
+this volume missing too. Applying the Flux YAML alone does not create either
+Secret.
+
+From the original bootstrap checkout, retain `.state/`, pull the current `main`,
+and rerun bootstrap with the same initial administrator email:
+
+```bash
+git pull --ff-only
+bash scripts/bootstrap.sh --admin-email you@example.com
+kubectl -n authn-admin get secret authn-admin-access oauth2-proxy-credentials
+kubectl -n authn-admin rollout status deployment/oauth2-proxy --timeout=5m
+```
+
+Use the actual administrator email. To repair only the missing allowlist and
+initial Secrets, run `bash scripts/initialize-secrets.sh --admin-email
+you@example.com`. If OIDC credentials are also missing, finish bootstrap; do not
+substitute placeholder client credentials. If bootstrap fails, resolve the
+first reported error before waiting for proxy readiness. Keep the allowlist
+volume required and retain the exact-email access restriction.
+
 ## Acceptance checks
 
 Run `scripts/check.sh` from a machine using the cluster DNS. Then check:

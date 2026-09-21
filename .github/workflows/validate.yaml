@@ -22,7 +22,7 @@ jobs:
           bash scripts/install-validation-tools.sh
       - name: Render and validate API schemas
         run: python3 scripts/validate.py
-      - name: Exercise real proxy denial and forwarding behavior
+      - name: Exercise bootstrap and real proxy behavior
         run: python3 -m unittest discover -s tests -v
       - name: Validate declarative identity provisioning
         run: |

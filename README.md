@@ -48,14 +48,15 @@ bash scripts/bootstrap.sh --admin-email you@example.com
 
 Use your real administrator email. Bootstrap:
 
-1. Checks base/storage readiness and preserves or creates the required Secrets.
+1. Checks base/storage readiness and preserves or creates the initial Secrets,
+   including the administrator email allowlist before any proxy pod is deployed.
 2. Applies the Flux source and root Kustomization; creates two CNPG databases,
    the identity service, private API and SSO infrastructure.
 3. Uses the official ZITADEL provider to register the console domain, initial
    human administrator and confidential OIDC web client with the exact callback.
    Provisioning state lives in an RBAC-protected Kubernetes Secret.
-4. Creates the proxy credentials and initial administrator allowlist, then waits
-   for all add-on Kustomizations to reconcile.
+4. Creates the proxy's OIDC credentials, then waits for all add-on
+   Kustomizations to reconcile.
 
 The initial password is written to `.state/bootstrap-admin-password`, never to
 Git or stdout. Change it on first login and enroll MFA. Public registration is
@@ -74,6 +75,8 @@ For a different secret-management workflow, create the documented Secrets before
 `kubectl apply -k bootstrap`, then run the provisioning stage. Applying YAML alone
 cannot generate an OIDC client inside an identity provider that has not started.
 Absent credentials leave protected workloads pending or denying access.
+If OAuth2 Proxy reports a missing Secret, follow the
+[bootstrap recovery steps](docs/operations.md#oauth2-proxy-waiting-for-secrets).
 
 ## Layout and versions
 

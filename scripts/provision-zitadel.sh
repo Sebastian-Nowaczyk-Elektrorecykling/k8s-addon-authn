@@ -9,7 +9,9 @@ mkdir -p .state
 chmod 700 .state
 task_tmp=$(mktemp -d "$PWD/.state/provision-XXXXXX")
 trap 'rm -rf -- "$task_tmp"' EXIT
-[[ -f .state/ca.crt ]] || { echo 'Run initialize-secrets.sh first.' >&2; exit 1; }
+[[ -f .state/ca.crt ]] || { echo 'Run initialize-secrets.sh --admin-email with the initial administrator email first.' >&2; exit 1; }
+existing=$(kubectl -n authn-admin get secret authn-admin-access --ignore-not-found -o name)
+[[ -n $existing ]] || { echo 'Missing authn-admin/authn-admin-access. Run initialize-secrets.sh --admin-email with the initial administrator email first.' >&2; exit 1; }
 # Pin inputs on the first run so rerunning bootstrap cannot rename the owner.
 if [[ -f .state/admin-email ]]; then
   [[ $(cat .state/admin-email) == "$admin_email" ]] || { echo 'Administrator differs from the previous bootstrap; use the console for additional users.' >&2; exit 1; }
@@ -54,12 +56,6 @@ kubectl -n authn-admin create secret generic oauth2-proxy-credentials \
   --from-file=client-id="$task_tmp/client-id" --from-file=client-secret="$task_tmp/client-secret" \
   --from-file=cookie-secret="$task_tmp/cookie-secret" --dry-run=client -o yaml |
   kubectl apply --server-side --field-manager=authn-bootstrap -f -
-# Preserve an existing allowlist: bootstrap must not remove other administrators.
-existing=$(kubectl -n authn-admin get secret authn-admin-access --ignore-not-found -o name)
-if [[ -z $existing ]]; then
-  printf '%s\n' "$admin_email" > "$task_tmp/emails"
-  kubectl -n authn-admin create secret generic authn-admin-access --from-file=emails="$task_tmp/emails"
-fi
 deployment=$(kubectl -n authn-admin get deployment oauth2-proxy --ignore-not-found -o name)
 if [[ -n $deployment ]]; then kubectl -n authn-admin rollout restart "$deployment"; fi
 echo 'ZITADEL domain, initial administrator and OAuth application provisioned.'
