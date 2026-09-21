@@ -17,7 +17,7 @@ are a later step.
 | `https://auth.internal` | Shared login, OIDC discovery and identity APIs | Native ZITADEL flows; login endpoints must be reachable before login |
 | `https://zitadel.admin.internal/ui/console` | ZITADEL administration | Native ZITADEL SSO and IAM roles |
 | `https://sso.admin.internal/oauth2/start` | Administrative browser-session helper | Public start/callback/logout endpoints only |
-| `https://hubble.admin.internal` | Existing Hubble UI | Admin SSO, after the base-owned route handoff |
+| `https://hubble.admin.internal` | Hubble UI | Admin SSO |
 | `https://longhorn.admin.internal` | Longhorn GUI | Admin SSO |
 | `https://openfga.admin.internal` | OpenFGA administrative HTTP API | Admin SSO plus the native OpenFGA API key; no playground |
 | `https://garage.admin.internal/health` | Garage administrative listener | Admin SSO; existing Garage token restrictions remain |
@@ -35,8 +35,8 @@ cert-manager GUI. See the [service boundaries](docs/operations.md#native-apis-an
 ## Install
 
 Use a machine with the cluster's LAN DNS, kubeconfig and trusted private CA.
-Required tools: `kubectl`, `jq`, `openssl`, `curl`, OpenTofu 1.12.6, and
-Python 3 with PyYAML for the Hubble handoff. The base domain is `internal`,
+Required tools: `kubectl`, `jq`, `openssl`, `curl`, and OpenTofu 1.12.6.
+The base domain is `internal`,
 Gateway is `gateway-system/internal`, and base Flux dependency names are used
 as deployed by the two repositories.
 
@@ -62,21 +62,13 @@ Git or stdout. Change it on first login and enroll MFA. Public registration is
 disabled. Reruns preserve existing master/API/cookie keys and the allowlist.
 Protect and back up the credentials listed in [operations](docs/operations.md).
 
-**Hubble needs its existing owner to switch the backend.** The new ingress guard
-blocks its old anonymous path until that handoff is committed in the networking
-repository. The new repository cannot durably change a route owned by another
-Flux source without a change to that source.
+This add-on creates the Hubble and Longhorn SSO routes through the shared
+administration listener. Hubble's UI and Service are supplied by the base Cilium
+installation. After bootstrap, verify the routes:
 
 ```bash
-python3 scripts/prepare-hubble-handoff.py /path/to/minimum-k8s-net-elektro
-# Review, commit and push the three changed files in that checkout.
 bash scripts/check.sh
 ```
-
-See [the exact handoff](docs/hubble-handoff.md). This repository contains no
-competing Hubble HTTPRoute and does not patch a Helm-managed Service.
-The helper prepares a local change; neither reference repository is modified by
-publishing this add-on.
 
 For a different secret-management workflow, create the documented Secrets before
 `kubectl apply -k bootstrap`, then run the provisioning stage. Applying YAML alone
@@ -120,5 +112,4 @@ identity outages and write-origin checks. Live browser login, gateway routing an
 streaming acceptance checks are documented separately.
 
 [Design and integration references](docs/design.md) ·
-[Operations, recovery and acceptance checks](docs/operations.md) ·
-[Hubble handoff](docs/hubble-handoff.md)
+[Operations, recovery and acceptance checks](docs/operations.md)

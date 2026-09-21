@@ -105,14 +105,22 @@ print(run(["kubeconform", "-strict", "-summary", "-kubernetes-version", "1.36.0"
           input=yaml.safe_dump_all(native)).strip())
 
 # Verify that public routes cannot bypass the authentication proxy.
-for route in [d for d in all_docs if d["kind"] == "HTTPRoute"]:
-    require(route["metadata"]["name"] != "administration", "Competing Hubble route")
+routes = [d for d in all_docs if d["kind"] == "HTTPRoute"]
+hubble_routes = [r for r in routes if "hubble.admin.internal" in r["spec"].get("hostnames", [])]
+require(len(hubble_routes) == 1, "Hubble must have exactly one SSO route")
+require(any(p["name"] == "internal" and p.get("namespace") == "gateway-system" and
+            p.get("sectionName") == "admin-https" for p in hubble_routes[0]["spec"]["parentRefs"]),
+        "Hubble must use the shared administration listener")
+for route in routes:
     for host in route["spec"].get("hostnames", []):
         require(host.endswith(".internal"), f"Unexpected public domain {host}")
         if host not in {"auth.internal", "zitadel.admin.internal"}:
             require(host.endswith(".admin.internal"), f"Admin service under a user domain: {host}")
             for rule in route["spec"]["rules"]:
-                require(all(b["name"] == "heimdall" for b in rule.get("backendRefs", [])), f"SSO bypass: {host}")
+                backends = rule.get("backendRefs", [])
+                require(backends and all(b["name"] == "heimdall" and b.get("port") == 4456 and
+                        b.get("namespace", route["metadata"]["namespace"]) == "authn-admin"
+                        for b in backends), f"SSO bypass: {host}")
 # All configured reverse-proxy destinations resolve to intentional private services.
 rules = yaml.safe_load((ROOT / "infrastructure/heimdall/rules.yaml").read_text())
 for rule in rules["rules"]:

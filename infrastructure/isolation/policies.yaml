@@ -1,6 +1,6 @@
 # Retain these guards on uninstall. Removing SSO must not reopen direct Hubble.
 # Cilium Gateway backend connections carry the reserved "ingress" identity.
-# Only Heimdall pod connections may reach the previously unprotected GUIs.
+# Only Heimdall pod connections may reach the Hubble and Longhorn GUIs.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

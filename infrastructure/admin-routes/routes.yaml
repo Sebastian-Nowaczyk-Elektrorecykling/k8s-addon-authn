@@ -1,5 +1,3 @@
-# Hubble's existing administration/administration HTTPRoute is intentionally
-# absent. See scripts/prepare-hubble-handoff.py and docs/hubble-handoff.md.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -8,6 +6,7 @@ metadata:
 spec:
   parentRefs: [{name: internal, namespace: gateway-system, sectionName: admin-https}]
   hostnames:
+    - hubble.admin.internal
     - longhorn.admin.internal
     - sso.admin.internal
     - openfga.admin.internal

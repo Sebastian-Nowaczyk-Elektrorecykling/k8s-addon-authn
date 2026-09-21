@@ -4,9 +4,29 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 [[ -s .state/ca.crt ]] || { echo 'Run initialize-secrets.sh to copy the public CA certificate.' >&2; exit 1; }
 kubectl -n flux-system wait kustomizations -l app.kubernetes.io/part-of=authn-addons \
   --for=condition=Ready --timeout=60s
-backend=$(kubectl -n administration get httproute administration -o json |
-  jq -r '.spec.rules[0].backendRefs[0] | [.namespace, .name, (.port|tostring)] | join("/")')
-[[ $backend == authn-admin/heimdall/4456 ]] || { echo "Hubble handoff incomplete: $backend; see docs/hubble-handoff.md" >&2; exit 1; }
+if ! kubectl -n authn-admin get httproute authenticated-administration -o json |
+  jq -e '
+    . as $route |
+    (.spec.hostnames | index("hubble.admin.internal") != null) and
+    (.spec.rules | length > 0) and
+    all(.spec.rules[];
+      (.backendRefs | length > 0) and
+      all(.backendRefs[];
+        .name == "heimdall" and .port == 4456 and
+        (.namespace // $route.metadata.namespace) == "authn-admin")) and
+    any(.status.parents[]?;
+      .controllerName == "io.cilium/gateway-controller" and
+      .parentRef.name == "internal" and
+      .parentRef.namespace == "gateway-system" and
+      .parentRef.sectionName == "admin-https" and
+      any(.conditions[]?; .type == "Accepted" and .status == "True" and
+          .observedGeneration == $route.metadata.generation) and
+      any(.conditions[]?; .type == "ResolvedRefs" and .status == "True" and
+          .observedGeneration == $route.metadata.generation))
+  ' >/dev/null; then
+  echo 'The administration route must serve Hubble through Heimdall and have current Accepted/ResolvedRefs conditions on admin-https.' >&2
+  exit 1
+fi
 for domain in auth.internal zitadel.admin.internal; do
   issuer=$(curl --fail --silent --show-error --max-time 15 --cacert .state/ca.crt \
     "https://$domain/.well-known/openid-configuration" | jq -er .issuer)

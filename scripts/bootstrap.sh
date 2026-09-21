@@ -23,5 +23,5 @@ kubectl -n flux-system annotate kustomization/authn-oauth2-proxy \
   reconcile.fluxcd.io/requestedAt="$(date -u +%s)" --overwrite >/dev/null
 kubectl -n flux-system wait kustomizations -l app.kubernetes.io/part-of=authn-addons \
   --for=condition=Ready --timeout=30m
-echo 'Authn add-ons reconciled. Complete the existing Hubble route handoff: docs/hubble-handoff.md'
+echo 'Authn add-ons reconciled. Verify the SSO routes with bash scripts/check.sh.'
 echo 'Initial administrator password: .state/bootstrap-admin-password (change it at first login).'

@@ -54,9 +54,13 @@ The integration sources used for implementation:
 - [Heimdall OpenFGA integration for the next step](https://github.com/dadrus/heimdall/blob/v0.17.22/docs/content/guides/authz/openfga.adoc)
 - [Official ZITADEL Terraform provider](https://github.com/zitadel/terraform-provider-zitadel)
 - [OpenFGA official chart](https://github.com/openfga/helm-charts/tree/openfga-0.3.14/charts/openfga)
-- [Base repository Hubble ownership contract](https://github.com/Sebastian-Nowaczyk-Elektrorecykling/minimum-k8s-net-elektro/blob/main/docs/hubble-sso.md)
+- [Base networking and Gateway configuration](https://github.com/Sebastian-Nowaczyk-Elektrorecykling/minimum-k8s-net-elektro)
 
 Compatibility was inspected against network commit
-`cfe8b74718acf79142c5f7e9d4a676d9d8add703` and storage commit
-`f11ddf0910058ff7c336e52fabb18ea9e838d988`. The references are dependencies;
-this repository does not take over their Helm releases or route ownership.
+`c7fba1d6df4c9dbc84ee29be8d197df57786b971` and storage commit
+`f11ddf0910058ff7c336e52fabb18ea9e838d988`. The base repository owns Cilium,
+Hubble's UI and Service, and the shared Gateway. This repository owns the
+SSO-protected administration HTTPRoute, including `hubble.admin.internal`, in
+`authn-admin`. It forwards to the same-namespace Heimdall Service; Heimdall
+reaches the existing Hubble Service over the cluster network. The ingress guard
+allows only Heimdall pods to reach Hubble UI.
