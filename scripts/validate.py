@@ -78,6 +78,12 @@ for release in releases:
     rendered_charts[name] = documents(output)
     all_docs.extend(rendered_charts[name])
     print(f"Rendered {name} ({version})")
+    if name == "oauth2-proxy":
+        deployment = next(d for d in rendered_charts[name] if d["kind"] == "Deployment")
+        proxy = next(c for c in deployment["spec"]["template"]["spec"]["containers"] if c["name"] == "oauth2-proxy")
+        expected_image = f"quay.io/oauth2-proxy/oauth2-proxy:{spec['values']['image']['tag']}"
+        require(proxy["image"] == expected_image,
+                f"Unexpected OAuth2 Proxy image: {proxy['image']}; expected {expected_image}")
 
 # Derive CRD schemas from the pinned upstream releases already used by the cluster.
 bundles = [
