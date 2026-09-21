@@ -166,7 +166,7 @@ routes follow the edge, gateway, Longhorn, and Garage. Stateful stages use
 | authentik chart/application | `2026.8.3` |
 | OpenFGA | `v1.21.0` |
 | oauth2-proxy | `v7.15.4` |
-| Heimdall LinuxServer image | `2.8.3-ls364` |
+| Heimdall LinuxServer image | `v2.8.3-ls364` |
 | nginx | `1.30.5-alpine` |
 | Authorization adapter runtime | `python:3.13.15-alpine` |
 

@@ -33,7 +33,7 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: heimdall
-        image: lscr.io/linuxserver/heimdall:2.8.3-ls364
+        image: lscr.io/linuxserver/heimdall:v2.8.3-ls364
         env:
         - name: PUID
           value: '1000'

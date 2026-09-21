@@ -34,11 +34,11 @@ jobs:
           import subprocess
           import yaml
           images = set()
-          for path in Path('apps').rglob('deployment.yaml'):
-              for obj in yaml.safe_load_all(path.read_text()):
-                  if obj['kind'] == 'Deployment':
-                      spec = obj['spec']['template']['spec']
-                      images.update(c['image'] for c in spec['containers'] + spec.get('initContainers', []))
+          for obj in yaml.safe_load_all(Path('.cache/rendered.yaml').read_text()):
+              if obj['kind'] == 'Deployment':
+                  spec = obj['spec']['template']['spec']
+                  images.update(c['image'] for c in spec['containers'] + spec.get('initContainers', []))
           for image in sorted(images):
+              print('Checking ' + image, flush=True)
               subprocess.run(['docker', 'manifest', 'inspect', image], check=True, stdout=subprocess.DEVNULL)
           PY
