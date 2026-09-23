@@ -11,6 +11,9 @@ entries:
       client_id: cluster-sites
       client_secret: !Env OAUTH2_CLIENT_SECRET
       client_type: confidential
+      # New authentik providers default to no grants; enable the browser flow.
+      grant_types:
+        - authorization_code
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]

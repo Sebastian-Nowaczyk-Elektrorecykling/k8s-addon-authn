@@ -23,6 +23,10 @@ own OIDC handshake, reusing the authentik login. There is no parent-domain
 checking, and private-CA verification are enabled. Explicit OIDC endpoints
 avoid a startup discovery loop through the edge. Deep links currently return
 to the site's root after login; revisit the original URL afterward.
+Identity discovery returns directly to `/authn/identity`, which works before
+any site grant exists. The authentik provider explicitly permits only the
+`authorization_code` grant used by oauth2-proxy; refresh and machine grants
+are not enabled on this provider.
 
 Kubernetes administrators and in-cluster workloads with network access are
 trusted. This add-on protects LAN HTTP routes, not the cluster's tenant
@@ -144,6 +148,23 @@ other repositories.
 
 ## Troubleshooting
 
+- **OAuth callback says `invalid_request`:** authentik rejects authorization
+  requests when the provider has no enabled grant types. Older revisions of
+  this repository omitted `grant_types`; new authentik providers default to
+  an empty list. Update to the fixed blueprint and let Flux and authentik
+  reconcile it. To repair an existing provider immediately, run the following
+  using your administrator kubeconfig (no password or token is printed):
+
+  ```bash
+  kubectl -n authn exec deployment/authentik-worker -c worker -- ak shell -c \
+    'from authentik.providers.oauth2.models import OAuth2Provider; p = OAuth2Provider.objects.get(client_id="cluster-sites"); p.grant_types = ["authorization_code"]; p.save(update_fields=["grant_types"]); print("Enabled authorization_code for cluster-sites")'
+  ```
+
+  Start a fresh login at `https://home.internal/oauth2/start?rd=/authn/identity`
+  instead of refreshing the failed callback URL. The database repair takes
+  effect without a pod restart. If the error persists, inspect authentik server
+  logs for the rejected parameter; a callback `invalid_request` is an IdP
+  request-validation error, not an OpenFGA site denial.
 - **Flux not Ready:** inspect conditions and named prerequisites; do not remove
   dependencies to conceal missing operators.
 - **OIDC callback/provider errors:** inspect authentik worker/blueprint status,

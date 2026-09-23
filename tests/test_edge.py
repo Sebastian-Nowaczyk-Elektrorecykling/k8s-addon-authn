@@ -171,6 +171,17 @@ class EdgeTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body), {"principal": "user:alice"})
 
+    def test_identity_login_returns_to_identity_before_any_site_grant(self):
+        status, headers, _ = self.get("longhorn.admin.internal", "/authn/identity")
+        self.assertEqual(status, 302)
+        self.assertEqual(headers["Location"],
+                         "https://longhorn.admin.internal/oauth2/start?rd=/authn/identity")
+
+    def test_invalid_agent_at_identity_does_not_start_browser_login(self):
+        status, _, _ = self.get("home.internal", "/authn/identity",
+                                {"Authorization": "Bearer invalid"})
+        self.assertEqual(status, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

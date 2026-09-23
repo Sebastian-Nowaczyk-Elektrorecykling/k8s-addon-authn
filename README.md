@@ -77,9 +77,9 @@ admitting ordinary users.
 
 2. Sign in as `akadmin` at `https://auth.internal`. Change its password and
    enroll MFA. The supplied bootstrap email belongs to this initial account.
-3. Open `https://home.internal/authn/identity`. Complete login and revisit that
-   URL if necessary. Copy the returned `user:<subject>`. This endpoint reveals
-   only the caller's verified identity and does not need a site grant.
+3. Open `https://home.internal/authn/identity`. Complete login; it returns you
+   directly to this endpoint. Copy the returned `user:<subject>`. This endpoint
+   reveals only the caller's verified identity and does not need a site grant.
 4. Grant the operator the necessary sites, substituting that subject:
 
    ```bash

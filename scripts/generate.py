@@ -93,7 +93,11 @@ http {
       proxy_pass http://127.0.0.1:9080/identity;
       proxy_set_header X-Original-Host $host;
       proxy_intercept_errors on;
-      error_page 401 = @login;
+      error_page 401 = @identity_login;
+    }
+    location @identity_login {
+      if ($machine_request) { return 401; }
+      return 302 https://$host/oauth2/start?rd=/authn/identity;
     }
     location = /_authn_check {
       internal;
@@ -195,6 +199,9 @@ entries:
       client_id: cluster-sites
       client_secret: !Env OAUTH2_CLIENT_SECRET
       client_type: confidential
+      # New authentik providers default to no grants; enable the browser flow.
+      grant_types:
+        - authorization_code
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
