@@ -25,9 +25,12 @@ Default names when the base domain is `internal`:
 | `https://hubble.admin.internal` | Existing Hubble UI | Site grant |
 | `https://longhorn.admin.internal` | Existing Longhorn UI | Site grant |
 | `https://openfga.admin.internal` | OpenFGA management API | Site grant plus native OpenFGA API key |
+| `https://permissions.admin.internal` | Visual site permissions | Explicit administrator site grant |
 
 The administrative suffix never grants privileges by itself. OpenFGA is an
 API, not a dashboard; its unauthenticated development playground is disabled.
+The permissions page lists registered sites and their users/agents, and supports
+granting and revoking access. Its OpenFGA credential stays on the server.
 CNPG, Barman, Velero, Flux controllers, DNS, PostgreSQL, and Hubble Relay do not
 have browser interfaces to publish. Garage's administration API is not enabled
 by the prerequisite repository, so no nonfunctional route is added for it.
@@ -84,7 +87,8 @@ admitting ordinary users.
 
    ```bash
    python3 scripts/access.py grant user:SUBJECT \
-     home.internal authentik.admin.internal hubble.admin.internal longhorn.admin.internal
+     home.internal authentik.admin.internal hubble.admin.internal longhorn.admin.internal \
+     permissions.admin.internal
    ```
 
 5. Open `https://authentik.admin.internal/if/admin/` to manage users. This
@@ -111,6 +115,32 @@ email field; email claims are not authorization credentials. Every request
 needs an explicit OpenFGA `member` tuple, checked through `can_access` with a
 pinned authorization model and higher consistency.
 
+## Dynamic addon sites and visual permissions
+
+Addon sites no longer need an entry in `config/sites.json`. In the addon's
+repository, label its HTTPRoute `authn.elektro.internal/enabled: "true"`, declare
+the backend Service/port in annotations, and point the route at
+`authn/authn-edge:80`. The site controller polls every 30 seconds and maintains
+the live catalog, proxy configuration, exact OAuth callbacks and ReferenceGrant.
+See the [complete HTTPRoute example and rollout steps](docs/dynamic-sites.md).
+
+New sites appear automatically at `https://permissions.admin.internal` and in
+`python3 scripts/access.py sites`. OpenFGA does not require a separate object
+creation step: granting a user/agent writes a `member` relationship to
+`clustersite:<hostname>`. Discovery itself grants nobody access.
+
+On the permissions page, choose a site, paste `user:<OIDC-sub>` or `agent:<name>`,
+and click **Grant access**. Existing grants have **Revoke** buttons. Obtain user
+subjects from `/authn/identity`; the page does not synchronize the authentik
+user directory. Access to the permissions page permits managing every site,
+so grant `permissions.admin.internal` only to trusted administrators. Keep the
+CLI and an administrator kubeconfig for recovery.
+
+An ordinary HTTPRoute pointing directly at an application bypasses this edge;
+it is not protected just because OpenFGA contains a hostname. The addon must
+use the documented route contract. Existing built-in sites remain seed entries
+in `config/sites.json`.
+
 ## Agents and service accounts
 
 Agents use random, expiring credentials without a browser. Only the SHA-256
@@ -130,7 +160,8 @@ Ordinary sites also accept `Authorization: Bearer <token>`. For **S3 and the
 OpenFGA API**, use `X-Cluster-Token` so `Authorization` remains available for
 SigV4 or the native OpenFGA API key. Invalid machine credentials receive 401,
 not a browser redirect. Agent tokens and SSO cookies are stripped before
-forwarding; native authorization is preserved only on those two APIs.
+forwarding; native authorization is preserved only on explicitly configured
+native APIs, including those two built-in APIs.
 
 Garage clients need endpoint `https://s3.internal`, path-style addressing,
 region `garage`, and a separately provisioned Garage access key/bucket. Add
@@ -150,9 +181,10 @@ do not use `oauth2` or `authn` as S3 bucket names on this endpoint.
 | `apps/authentik/` | Official Helm release and declarative OIDC blueprint |
 | `apps/openfga/` | Persistent OpenFGA, migrations, authenticated API |
 | `apps/heimdall/` | Persistent dashboard using `longhorn` |
-| `apps/edge/` | nginx, oauth2-proxy, and OpenFGA authorization adapter |
+| `apps/edge/` | nginx, oauth2-proxy, authorization adapter, and permissions console |
+| `apps/site-controller/` | HTTPRoute discovery and runtime SSO configuration |
 | `infrastructure/routes/` | Gateway routes and narrowly scoped ReferenceGrant |
-| `config/sites.json` | Site names, scopes, upstreams, and callback source |
+| `config/sites.json` | Built-in seed sites; addon sites are discovered from HTTPRoutes |
 | `openfga/` | Human-readable model and executable API model |
 | `scripts/`, `tests/` | Setup, grants/tokens, generation, validation |
 

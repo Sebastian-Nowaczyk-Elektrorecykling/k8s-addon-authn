@@ -85,6 +85,9 @@ Runtime resources initialized outside Git:
 | `authn-agents` Secret | Token digests, principal IDs, expirations |
 | `authn-openfga-state` ConfigMap | Store ID, pinned model ID/hash |
 | `authn-ca` ConfigMap | Public root CA only |
+| `authn-runtime` ConfigMap | Controller-generated live site catalog and edge configuration |
+| `authn-runtime-blueprints` ConfigMap | Controller-generated strict OIDC callback blueprint |
+| `authn-discovery-status` ConfigMap | Rejected addon routes and reasons |
 | `authentik-db-app`, `openfga-db-app` Secrets | CNPG-generated database credentials |
 
 Preserve the authentik secret key: hashed subjects and their grants depend on
@@ -104,12 +107,13 @@ ambiguous stores or incompatible existing models.
 
 ## Changes and upgrades
 
-Edit `config/sites.json`, then run `python3 scripts/generate.py`. Routes,
-upstreams, the allowlist, and strict OAuth callbacks regenerate together.
-Commit generated files with the configuration. Edge ConfigMap hashes cause a
-rollout; the authentik worker periodically reconciles the stable blueprint
-ConfigMap. Verify its blueprint status before trying a newly added callback.
-New sites require new explicit grants.
+For addon sites, use the [dynamic HTTPRoute contract](dynamic-sites.md) in the
+addon's repository. No change to this repository is required. For built-in
+sites, edit `config/sites.json`, run `python3 scripts/generate.py`, and commit
+the generated files. Both paths feed the controller's live configuration.
+The controller rolls the edge and authentik worker when their configuration
+changes; verify the blueprint status before trying a new callback. Every new
+site still needs an explicit grant, using the permissions page or CLI.
 
 Ordinary hosts use `applications`/`apps-https`; admin tools use
 `administration`/`admin-https`. Keep native `Authorization` forwarding only
@@ -180,4 +184,6 @@ other repositories.
   native credentials, and absence of `X-Cluster-Token` from `SignedHeaders`.
 
 Edge access logs and proxy auth logs are disabled to avoid recording sensitive
-query strings. Add a reviewed audit/metrics setup with your monitoring stack.
+query strings. The permissions container logs successful changes with actor,
+action, principal and hostname; it never logs the native API credential. Add
+central log retention and a reviewed audit/metrics setup with your monitoring stack.

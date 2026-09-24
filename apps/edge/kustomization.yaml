@@ -6,7 +6,9 @@ configMapGenerator:
 - name: authn-edge-config
   namespace: authn
   files:
-  - nginx.conf
-  - oauth2-proxy.cfg
   - authorizer.py
-  - sites.json
+  - permissions.py
+  - index.html
+  - app.js
+  - style.css
+  - wait-config.py

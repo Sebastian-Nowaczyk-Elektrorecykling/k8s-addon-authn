@@ -9,12 +9,16 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from http.server import ThreadingHTTPServer
+import threading
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = os.environ.get("OPENFGA", shutil.which("openfga"))
 sys.path.insert(0, str(ROOT / "scripts"))
 import access
+sys.path.insert(0, str(ROOT / "apps/edge"))
+import permissions
 
 
 @unittest.skipUnless(BINARY, "Set OPENFGA to run the real authorization-model tests")
@@ -107,6 +111,60 @@ class ModelTests(unittest.TestCase):
             state.clear()
             access.initialize(self.call)
             self.assertEqual(json.loads(state["configmap"]["data"]["openfga.json"]), initial)
+
+    def test_permissions_console_checks_admin_access_and_manages_dynamic_site_grants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / "sites.json").write_text(json.dumps({"budget.internal": {
+                "name": "Budget", "host": "budget.internal", "source": "budget/budget"}}))
+            (path / "openfga.json").write_text(json.dumps({"store_id": self.store, "model_id": self.model}))
+            (path / "openfga-token").write_text("test-only")
+            (path / "rejected.json").write_text("{}")
+            self.call("POST", f"/stores/{self.store}/write", {"authorization_model_id": self.model,
+                "writes": {"tuple_keys": [{"user": "user:operator", "relation": "member",
+                                           "object": "clustersite:" + permissions.HOST}]}})
+            with patch.multiple(permissions.authorizer, CONFIG=path, STATE=path, SECRETS=path,
+                                OPENFGA_URL="http://127.0.0.1:18080"), patch.object(permissions, "DISCOVERY", path):
+                server = ThreadingHTTPServer(("127.0.0.1", 0), permissions.Handler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+                try:
+                    def console(url, principal="user:operator", data=None, origin=True):
+                        headers = {"X-Cluster-Principal": principal}
+                        if data is not None:
+                            headers.update({"Content-Type": "application/json", "X-Requested-With": "authn-permissions"})
+                            if origin: headers["Origin"] = "https://" + permissions.HOST
+                        req = urllib.request.Request(f"http://127.0.0.1:{server.server_port}" + url,
+                            headers=headers, data=None if data is None else json.dumps(data).encode())
+                        try:
+                            response = urllib.request.urlopen(req, timeout=3)
+                        except urllib.error.HTTPError as error:
+                            response = error
+                        with response:
+                            raw = response.read()
+                            self.assertNotIn(b"test-only", raw, "Native API key must never reach the browser")
+                            return response.status, raw
+
+                    for principal in ("", "user:alice", "agent:backup"):
+                        self.assertEqual(console("/api/catalog", principal=principal)[0], 403)
+                    self.assertEqual(console("/api/catalog")[0], 200)
+                    grant = {"action": "grant", "principal": "user:console-test", "host": "budget.internal"}
+                    self.assertEqual(console("/api/membership", data=grant, origin=False)[0], 403)
+                    self.assertEqual(console("/api/membership", data={**grant, "host": "unregistered.internal"})[0], 400)
+                    self.assertFalse(permissions.authorizer.allowed("user:console-test", "budget.internal"))
+                    self.assertEqual(console("/api/membership", data=grant)[0], 200)
+                    self.assertEqual(console("/api/membership", data=grant)[0], 200)
+                    self.assertTrue(permissions.authorizer.allowed("user:console-test", "budget.internal"))
+                    status, body = console("/api/grants?host=budget.internal")
+                    self.assertEqual(status, 200)
+                    self.assertIn("user:console-test", json.loads(body)["principals"])
+                    self.assertEqual(console("/api/membership", data={**grant, "action": "revoke"})[0], 200)
+                    self.assertFalse(permissions.authorizer.allowed("user:console-test", "budget.internal"))
+                    # Removing console access also blocks an already-running browser.
+                    self.call("POST", f"/stores/{self.store}/write", {"authorization_model_id": self.model,
+                        "deletes": {"tuple_keys": [{"user": "user:operator", "relation": "member", "object": "clustersite:" + permissions.HOST}]}})
+                    self.assertEqual(console("/api/catalog")[0], 403)
+                finally:
+                    server.shutdown(); server.server_close(); thread.join(timeout=5)
 
 
 if __name__ == "__main__":

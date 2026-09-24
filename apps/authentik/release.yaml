@@ -23,6 +23,13 @@ spec:
       retries: 3
   driftDetection:
     mode: enabled
+    ignore:
+    - paths:
+      - /spec/template/metadata/annotations/authn.elektro.internal~1revision
+      target:
+        kind: Deployment
+        name: authentik-worker
+        namespace: authn
   values:
     global:
       fullnameOverride: authentik
@@ -55,7 +62,7 @@ spec:
       create: false
     blueprints:
       configMaps:
-      - authentik-blueprints
+      - authn-runtime-blueprints
     server:
       replicas: 1
       serviceAccountName: default
@@ -88,3 +95,38 @@ spec:
           memory: 512Mi
         limits:
           memory: 1536Mi
+      initContainers:
+      - name: wait-blueprint
+        image: python:3.13.15-alpine
+        command:
+        - python3
+        - -c
+        - "import hashlib, os, time\nfrom pathlib import Path\nexpected = os.environ.get('EXPECTED_REVISION',\
+          \ '')\nwhile expected and hashlib.sha256(Path('/blueprint/cluster-sites.yaml').read_bytes()).hexdigest()\
+          \ != expected:\n    time.sleep(2)\n"
+        env:
+        - name: EXPECTED_REVISION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['authn.elektro.internal/revision']
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+        - name: blueprints-cm-authn-runtime-blueprints
+          mountPath: /blueprint
+          readOnly: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 24Mi
+          limits:
+            memory: 64Mi
