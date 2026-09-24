@@ -36,5 +36,11 @@
     "scope": "applications",
     "upstream": "garage.garage.svc.cluster.local:3900",
     "native_authorization": true
+  },
+  "permissions.${ADMIN_DOMAIN}": {
+    "name": "permissions",
+    "host": "permissions.${ADMIN_DOMAIN}",
+    "scope": "administration",
+    "upstream": "127.0.0.1:9090"
   }
 }

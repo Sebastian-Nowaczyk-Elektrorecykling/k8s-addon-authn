@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: authn-site-controller
+  namespace: authn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authn-site-discovery
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - namespaces
+  - services
+  verbs:
+  - list
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: authn-site-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authn-site-discovery
+subjects:
+- kind: ServiceAccount
+  name: authn-site-controller
+  namespace: authn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: authn-site-gateway
+  namespace: gateway-system
+rules:
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  resourceNames:
+  - internal
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authn-site-gateway
+  namespace: gateway-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authn-site-gateway
+subjects:
+- kind: ServiceAccount
+  name: authn-site-controller
+  namespace: authn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: authn-site-runtime
+  namespace: authn
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  verbs:
+  - create
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - authn-runtime
+  - authn-runtime-blueprints
+  - authn-discovery-status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - referencegrants
+  verbs:
+  - create
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - referencegrants
+  resourceNames:
+  - authn-discovered-routes
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  resourceNames:
+  - authn-edge
+  - authentik-worker
+  verbs:
+  - get
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authn-site-runtime
+  namespace: authn
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authn-site-runtime
+subjects:
+- kind: ServiceAccount
+  name: authn-site-controller
+  namespace: authn
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authn-site-controller
+  namespace: authn
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: &id001
+      app.kubernetes.io/name: authn-site-controller
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      serviceAccountName: authn-site-controller
+      securityContext:
+        fsGroup: 1000
+      containers:
+      - name: controller
+        image: python:3.13.15-alpine
+        command:
+        - python3
+        - -B
+        - -u
+        - /config/controller.py
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        env:
+        - name: DOMAIN
+          value: ${DOMAIN}
+        - name: ADMIN_DOMAIN
+          value: ${ADMIN_DOMAIN}
+        - name: CLUSTER_DNS_IP
+          value: ${CLUSTER_DNS_IP}
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 25m
+            memory: 48Mi
+          limits:
+            memory: 192Mi
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - from pathlib import Path; import time; assert time.time() - Path('/tmp/ready').stat().st_mtime
+              < 180
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: authn-site-controller
+      - name: tmp
+        emptyDir: {}

@@ -114,9 +114,13 @@ def initialize(call, upgrade=False):
 def membership(call, action, principal, hosts):
     if not re.fullmatch(r"(?:user|agent):[A-Za-z0-9_.@-]{1,200}", principal):
         raise ValueError("Use user:<OIDC-sub> or agent:<name>")
-    known = {s["host"] for s in sites()}
-    if not set(hosts).issubset(known):
-        raise ValueError("Hosts must be configured exact hostnames: " + ", ".join(sorted(known)))
+    if not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?", host) and "." in host for host in hosts):
+        raise ValueError("Use exact lowercase hostnames")
+    if action == "grant":
+        known = {s["host"] for s in sites(live=True)}
+        if not set(hosts).issubset(known):
+            raise ValueError("Hosts must be registered exact hostnames: " + ", ".join(sorted(known)))
+    # Revocation also supports removed sites, so retained tuples can be cleaned up.
     state = json.loads(get("configmap", "authn-openfga-state")["data"]["openfga.json"])
     for host in hosts:
         key = {"user": principal, "relation": "member", "object": "clustersite:" + host}
@@ -160,6 +164,7 @@ def agent(action, name, output=None, days=30):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("sites", help="List the controller's current built-in and discovered sites")
     init = sub.add_parser("init")
     init.add_argument("--upgrade-model", action="store_true")
     for command in ("grant", "revoke"):
@@ -172,7 +177,10 @@ def main():
     create.add_argument("--days", type=int, default=30)
     sub.add_parser("revoke-agent").add_argument("name")
     args = parser.parse_args()
-    if args.command in ("create-agent", "revoke-agent"):
+    if args.command == "sites":
+        for site in sites(live=True):
+            print(f"{site['host']}\t{site.get('source', 'built-in')}\t{site['upstream']}")
+    elif args.command in ("create-agent", "revoke-agent"):
         agent(args.command, args.name, getattr(args, "output", None), getattr(args, "days", 30))
     else:
         with api() as call:

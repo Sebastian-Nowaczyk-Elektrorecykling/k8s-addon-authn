@@ -101,7 +101,7 @@ spec:
         command:
         - python3
         - -B
-        - /config/authorizer.py
+        - /code/authorizer.py
         securityContext: *id001
         resources:
           requests:
@@ -110,14 +110,17 @@ spec:
           limits:
             memory: 256Mi
         volumeMounts:
-        - name: config
-          mountPath: /config
-          readOnly: true
         - name: secrets
           mountPath: /secrets
           readOnly: true
         - name: state
           mountPath: /state
+          readOnly: true
+        - name: code
+          mountPath: /code
+          readOnly: true
+        - name: runtime
+          mountPath: /runtime
           readOnly: true
         livenessProbe:
           exec:
@@ -127,10 +130,56 @@ spec:
             - import urllib.request; urllib.request.urlopen('http://127.0.0.1:9080/healthz',
               timeout=2)
           periodSeconds: 20
+        env:
+        - name: AUTHN_CONFIG
+          value: /runtime
+      - name: permissions
+        image: python:3.13.15-alpine
+        command:
+        - python3
+        - -B
+        - /code/permissions.py
+        env:
+        - name: AUTHN_CONFIG
+          value: /runtime
+        - name: PERMISSIONS_HOST
+          value: permissions.${ADMIN_DOMAIN}
+        securityContext: &id002
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        volumeMounts:
+        - name: code
+          mountPath: /code
+          readOnly: true
+        - name: runtime
+          mountPath: /runtime
+          readOnly: true
+        - name: secrets
+          mountPath: /secrets
+          readOnly: true
+        - name: state
+          mountPath: /state
+          readOnly: true
+        - name: discovery
+          mountPath: /discovery
+          readOnly: true
       volumes:
       - name: config
-        configMap:
-          name: authn-edge-config
+        emptyDir: {}
       - name: tmp
         emptyDir: {}
       - name: ca
@@ -153,6 +202,43 @@ spec:
         configMap:
           name: authn-openfga-state
           optional: true
+      - name: code
+        configMap:
+          name: authn-edge-config
+      - name: runtime
+        configMap:
+          name: authn-runtime
+      - name: discovery
+        configMap:
+          name: authn-discovery-status
+      initContainers:
+      - name: configuration
+        image: python:3.13.15-alpine
+        command:
+        - python3
+        - -B
+        - /code/wait-config.py
+        securityContext: *id002
+        env:
+        - name: EXPECTED_REVISION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['authn.elektro.internal/revision']
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: runtime
+          mountPath: /runtime
+          readOnly: true
+        - name: code
+          mountPath: /code
+          readOnly: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 24Mi
+          limits:
+            memory: 64Mi
 ---
 apiVersion: v1
 kind: Service

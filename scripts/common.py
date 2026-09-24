@@ -35,7 +35,12 @@ def settings():
     return get("configmap", "cluster-settings", "flux-system")["data"]
 
 
-def sites():
+def sites(live=False):
+    if live:
+        current = get("configmap", "authn-runtime", optional=True)
+        if not current:
+            raise ValueError("Site controller has not initialized authn-runtime; check authn-site-controller logs")
+        return list(json.loads(current["data"]["sites.json"]).values())
     data = settings()
     raw = (ROOT / "config/sites.json").read_text()
     for key in ("DOMAIN", "ADMIN_DOMAIN"):

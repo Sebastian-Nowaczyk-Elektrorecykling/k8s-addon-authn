@@ -34,6 +34,8 @@ entries:
           url: https://openfga.${ADMIN_DOMAIN}/oauth2/callback
         - matching_mode: strict
           url: https://s3.${DOMAIN}/oauth2/callback
+        - matching_mode: strict
+          url: https://permissions.${ADMIN_DOMAIN}/oauth2/callback
   - model: authentik_core.application
     identifiers:
       slug: cluster-sites

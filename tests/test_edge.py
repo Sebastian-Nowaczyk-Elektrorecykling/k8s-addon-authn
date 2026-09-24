@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -17,6 +18,8 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 NGINX = os.environ.get("NGINX", shutil.which("nginx"))
 TOKEN = "a" * 43
+sys.path.insert(0, str(ROOT / "apps/site-controller"))
+from render import render
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -26,6 +29,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class Stub(BaseHTTPRequestHandler):
     fga_available = True
+    granted_sites = {"clustersite:home.internal", "clustersite:s3.internal"}
 
     def do_GET(self):
         if self.server.server_port == 4180:
@@ -43,7 +47,7 @@ class Stub(BaseHTTPRequestHandler):
 
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        allowed = data["tuple_key"]["object"] in ("clustersite:home.internal", "clustersite:s3.internal")
+        allowed = data["tuple_key"]["object"] in self.granted_sites
         body = json.dumps({"allowed": allowed}).encode()
         self.send_response(200 if self.fga_available else 503)
         self.send_header("Content-Length", str(len(body)))
@@ -68,8 +72,10 @@ class EdgeTests(unittest.TestCase):
             threading.Thread(target=server.serve_forever, daemon=True).start()
             cls.servers.append(server)
         replacements = {"${DOMAIN}": "internal", "${ADMIN_DOMAIN}": "admin.internal", "${CLUSTER_DNS_IP}": "127.0.0.1"}
-        raw = (ROOT / "apps/edge/nginx.conf").read_text()
-        sites = (ROOT / "apps/edge/sites.json").read_text()
+        seed_sites = list(json.loads((ROOT / "apps/edge/sites.json").read_text()).values())
+        generated = render(seed_sites + [{"name": "budget", "host": "budget.internal", "scope": "applications",
+                                         "upstream": "budget.budget.svc.cluster.local:80", "source": "budget/budget"}])
+        raw, sites = generated["nginx.conf"], generated["sites.json"]
         for source, destination in replacements.items():
             raw, sites = raw.replace(source, destination), sites.replace(source, destination)
         raw = re.sub(r"[a-z0-9.-]+\.svc\.cluster\.local:[0-9]+", "127.0.0.1:19090", raw)
@@ -132,6 +138,22 @@ class EdgeTests(unittest.TestCase):
 
     def test_authentication_does_not_imply_admin_access(self):
         self.assertEqual(self.get("longhorn.admin.internal", headers={"Cookie": "__Host-cluster_sso=valid"})[0], 403)
+
+    def test_discovered_site_requires_a_grant_and_catalog_removal_denies_existing_sessions(self):
+        headers = {"Cookie": "__Host-cluster_sso=valid"}
+        self.assertEqual(self.get("budget.internal", headers=headers)[0], 403)
+        key = "clustersite:budget.internal"
+        path = self.path / "sites.json"
+        original = path.read_text()
+        try:
+            Stub.granted_sites.add(key)
+            self.assertEqual(self.get("budget.internal", headers=headers)[0], 200)
+            sites = json.loads(original); del sites["budget.internal"]
+            path.write_text(json.dumps(sites))
+            self.assertEqual(self.get("budget.internal", headers=headers)[0], 403)
+        finally:
+            Stub.granted_sites.discard(key)
+            path.write_text(original)
 
     def test_upstream_receives_verified_identity_and_no_credentials(self):
         status, _, body = self.get("home.internal", headers={"Cookie": "__Host-cluster_sso=valid; app=session",

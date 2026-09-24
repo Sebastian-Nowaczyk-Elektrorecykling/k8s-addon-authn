@@ -83,6 +83,14 @@ def authorize(headers, identity_only=False):
         return 401, {}, b""
     if identity_only:
         return 200, {"Content-Type": "application/json"}, json.dumps({"principal": principal}).encode()
+    if not allowed(principal, host):
+        return 403, {}, b""
+    return 204, {"X-Cluster-Principal": principal,
+                 "X-Upstream-Cookie": upstream_cookie(headers.get("Cookie", ""))}, b""
+
+
+def allowed(principal, host):
+    """Check the pinned model, shared by the edge and loopback admin service."""
     state = json.loads((STATE / "openfga.json").read_text())
     if not all(re.fullmatch(r"[0-9A-Z]{26}", state.get(key, ""))
                for key in ("store_id", "model_id")):
@@ -98,10 +106,7 @@ def authorize(headers, identity_only=False):
          "Authorization": "Bearer " + (SECRETS / "openfga-token").read_text().strip()}, data)
     if status != 200:
         raise RuntimeError("authorization service unavailable")
-    if json.loads(body).get("allowed") is not True:
-        return 403, {}, b""
-    return 204, {"X-Cluster-Principal": principal,
-                 "X-Upstream-Cookie": upstream_cookie(headers.get("Cookie", ""))}, b""
+    return json.loads(body).get("allowed") is True
 
 
 class Handler(BaseHTTPRequestHandler):

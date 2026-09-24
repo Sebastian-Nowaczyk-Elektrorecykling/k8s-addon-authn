@@ -74,6 +74,32 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: authn-site-controller
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: authn-addons
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 20m
+  path: ./apps/site-controller
+  sourceRef:
+    kind: GitRepository
+    name: authn-addons
+  prune: true
+  deletionPolicy: Orphan
+  wait: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: cluster-settings
+  dependsOn:
+  - name: authn-namespaces
+  - name: gateway
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: authn-authentik
   namespace: flux-system
   labels:
@@ -96,6 +122,7 @@ spec:
   dependsOn:
   - name: authn-databases
   - name: authn-sources
+  - name: authn-site-controller
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

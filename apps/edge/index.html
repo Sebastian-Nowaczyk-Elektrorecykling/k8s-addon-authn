@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Site permissions</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header><div><span class="eyebrow">CLUSTER ACCESS</span><h1>Site permissions</h1></div><button id="refresh" type="button">Refresh sites</button></header>
+  <p class="intro">Choose a site to manage who can open it. New sites start with no access.</p>
+  <p id="message" role="status" aria-live="polite">Loading sites…</p>
+  <main>
+    <aside><label for="search">Registered sites <span id="count"></span></label><input id="search" type="search" placeholder="Search name or hostname"><nav id="sites" aria-label="Sites"></nav></aside>
+    <section id="details" hidden>
+      <div class="site-heading"><div><span id="source" class="eyebrow"></span><h2 id="title"></h2><a id="host" target="_blank" rel="noopener"></a></div><span id="grant-count" class="badge"></span></div>
+      <p id="admin-note" class="notice" hidden>Access to this site allows managing permissions for every registered site. Grant it only to administrators.</p>
+      <h3>People and agents with access</h3>
+      <div id="grants"></div>
+      <form id="grant-form">
+        <label for="principal">Grant access</label>
+        <div class="form-row"><input id="principal" required maxlength="206" placeholder="user:OIDC-sub or agent:name" autocomplete="off" spellcheck="false"><button id="grant-button" type="submit">Grant access</button></div>
+        <p class="hint">Ask the person to sign in at <a id="identity-link" target="_blank" rel="noopener">/authn/identity</a> and copy their principal. Use an existing agent’s name to grant agent access.</p>
+      </form>
+    </section>
+  </main>
+  <section id="rejected-section" class="rejected" hidden><h2>Routes needing attention</h2><ul id="rejected"></ul></section>
+  <footer>Signed in as <code id="actor"></code><p>Permissions are stored in OpenFGA. Removing a route hides its site; existing grants remain until revoked.</p></footer>
+</body>
+</html>
